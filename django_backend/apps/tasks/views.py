@@ -1,5 +1,5 @@
-from rest_framework import generics, filters, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework import generics, filters, status, viewsets
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -8,6 +8,13 @@ from django.utils import timezone
 from .models import Task, TaskComment
 from .serializers import TaskSerializer, TaskListSerializer, TaskCommentSerializer
 from .tasks import send_task_notification
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django.shortcuts import get_object_or_404
+from .models import Task, Comment, TaskHistory
+from .serializers import TaskSerializer, CommentSerializer, TaskHistorySerializer
+from django.views.generic import TemplateView
+
+
 
 
 class TaskListCreateView(generics.ListCreateAPIView):
@@ -88,3 +95,61 @@ def task_stats(request):
     }
     
     return Response(stats)
+
+
+
+
+class TaskViewSet(viewsets.ModelViewSet):
+    queryset = Task.objects.filter(is_archived=False)
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'priority', 'created_by']
+    search_fields = ['title', 'description']
+    ordering_fields = ['due_date', 'priority', 'created_at']
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    def perform_destroy(self, instance):
+        instance.soft_delete()
+
+    @action(detail=True, methods=['post'])
+    def assign(self, request, pk=None):
+        task = self.get_object()
+        user_ids = request.data.get('user_ids', [])
+        if not isinstance(user_ids, list):
+            return Response({'error': 'user_ids must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+        users = get_user_model().objects.filter(id__in=user_ids)
+        task.assigned_to.add(*users)
+        return Response({'status': 'users assigned'})
+
+    @action(detail=True, methods=['post'])
+    def comments(self, request, pk=None):
+        task = self.get_object()
+        serializer = CommentSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user, task=task)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def list_comments(self, request, pk=None):
+        task = self.get_object()
+        comments = task.comments.all()
+        serializer = CommentSerializer(comments, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def history(self, request, pk=None):
+        task = self.get_object()
+        history = task.history.all()
+        serializer = Task
+class TaskListPageView(TemplateView):
+    template_name = 'tasks/task_list.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            from django.contrib.auth.views import redirect_to_login
+            return redirect_to_login(request.get_full_path())
+        return super().dispatch(request, *args, **kwargs)

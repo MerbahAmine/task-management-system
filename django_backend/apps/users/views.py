@@ -5,11 +5,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
-
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
-
 from .serializers import RegisterSerializer, LoginSerializer
+from rest_framework import viewsets, permissions, generics
+from .models import User
+from .serializers import UserSerializer, UserUpdateSerializer
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
 
 class RegisterView(APIView):
     def post(self, request):
@@ -51,3 +55,22 @@ class LogoutView(APIView):
 class RefreshView(TokenRefreshView):
     # Inherits logic from SimpleJWT
     pass
+
+
+# apps/users/views.py
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action in ['update', 'partial_update']:
+            return UserUpdateSerializer
+        return UserSerializer
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def me(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)

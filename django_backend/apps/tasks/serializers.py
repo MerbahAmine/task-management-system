@@ -1,52 +1,61 @@
+# apps/tasks/serializers.py
 from rest_framework import serializers
+from .models import Task, Tag, Comment, TaskAssignment, TaskHistory
 from django.contrib.auth import get_user_model
-from .models import Task, TaskComment
 
 User = get_user_model()
 
-
-class TaskCommentSerializer(serializers.ModelSerializer):
-    """Serializer for TaskComment model."""
-    author_name = serializers.CharField(source='author.get_full_name', read_only=True)
-    author_username = serializers.CharField(source='author.username', read_only=True)
-    
+class TagSerializer(serializers.ModelSerializer):
     class Meta:
-        model = TaskComment
-        fields = ['id', 'content', 'author_name', 'author_username', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'author', 'created_at', 'updated_at']
-
+        model = Tag
+        fields = ['id', 'name']
 
 class TaskSerializer(serializers.ModelSerializer):
-    """Serializer for Task model."""
-    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
-    comments = TaskCommentSerializer(many=True, read_only=True)
-    is_overdue = serializers.BooleanField(read_only=True)
-    
+    tags = TagSerializer(many=True, required=False)
+    assigned_to = serializers.PrimaryKeyRelatedField(many=True, queryset=User.objects.all())
+    created_by = serializers.ReadOnlyField(source='created_by.id')
+
     class Meta:
         model = Task
-        fields = [
-            'id', 'title', 'description', 'status', 'priority', 'due_date',
-            'created_by', 'created_by_name', 'assigned_to', 'assigned_to_name',
-            'created_at', 'updated_at', 'completed_at', 'is_overdue', 'comments'
-        ]
-        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at', 'completed_at']
-    
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at', 'created_by', 'is_archived']
+
     def create(self, validated_data):
-        # Set the created_by field to the current user
-        validated_data['created_by'] = self.context['request'].user
-        return super().create(validated_data)
+        tags_data = validated_data.pop('tags', [])
+        assigned_users = validated_data.pop('assigned_to', [])
+        task = Task.objects.create(**validated_data)
+        for tag_data in tags_data:
+            tag, _ = Tag.objects.get_or_create(**tag_data)
+            task.tags.add(tag)
+        task.assigned_to.set(assigned_users)
+        return task
 
+    def update(self, instance, validated_data):
+        tags_data = validated_data.pop('tags', None)
+        assigned_users = validated_data.pop('assigned_to', None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        if tags_data is not None:
+            instance.tags.clear()
+            for tag_data in tags_data:
+                tag, _ = Tag.objects.get_or_create(**tag_data)
+                instance.tags.add(tag)
+        if assigned_users is not None:
+            instance.assigned_to.set(assigned_users)
+        instance.save()
+        return instance
 
-class TaskListSerializer(serializers.ModelSerializer):
-    """Simplified serializer for task lists."""
-    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
-    assigned_to_name = serializers.CharField(source='assigned_to.get_full_name', read_only=True)
-    is_overdue = serializers.BooleanField(read_only=True)
-    
+class CommentSerializer(serializers.ModelSerializer):
+    user = serializers.ReadOnlyField(source='user.id')
+
     class Meta:
-        model = Task
-        fields = [
-            'id', 'title', 'status', 'priority', 'due_date',
-            'created_by_name', 'assigned_to_name', 'created_at', 'is_overdue'
-        ]
+        model = Comment
+        fields = ['id', 'task', 'user', 'content', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at']
+
+class TaskHistorySerializer(serializers.ModelSerializer):
+    changed_by = serializers.ReadOnlyField(source='changed_by.id')
+
+    class Meta:
+        model = TaskHistory
+        fields = '__all__'
