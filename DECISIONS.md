@@ -19,7 +19,7 @@ Celery: Configuring and running background tasks was challenging, but I improved
 
 ##Trade-offs Made:
 
-I chose to prioritize stability and core functionality over advanced optimizations. This allowed me to deliver a working project within the given timeframe rather than risk incomplete implementations.
+I focused more on learning and gaining knowledge than on rushing to complete everything. My priority was to grow through the process. I am very eager to join your team, start this internship, and continue developing myself to become a strong Junior Backend Developer.
 
 ##With additional time, I would:
 
