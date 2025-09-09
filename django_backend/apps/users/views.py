@@ -4,6 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from django.contrib.auth import authenticate
+from django.contrib.auth import get_user_model
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -27,10 +28,13 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
-            user = authenticate(
-                username=serializer.validated_data['username'],
-                password=serializer.validated_data['password']
-            )
+            # Authenticate with email as USERNAME_FIELD
+            User = get_user_model()
+            try:
+                user_obj = User.objects.get(email=serializer.validated_data['email'])
+                user = authenticate(username=user_obj.email, password=serializer.validated_data['password'])
+            except User.DoesNotExist:
+                user = None
             if user:
                 refresh = RefreshToken.for_user(user)
                 return Response({

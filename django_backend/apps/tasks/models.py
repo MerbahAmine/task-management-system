@@ -7,6 +7,8 @@ from django.contrib.postgres.search import SearchVectorField
 STATUS_CHOICES = (
     ('todo', 'To Do'),
     ('in_progress', 'In Progress'),
+    ('review', 'In Review'),
+    ('overdue', 'Overdue'),
     ('done', 'Done'),
 )
 

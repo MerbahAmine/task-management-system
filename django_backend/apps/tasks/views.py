@@ -5,14 +5,13 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.utils import timezone
-from .models import Task, TaskComment
-from .serializers import TaskSerializer, TaskListSerializer, TaskCommentSerializer
-from .tasks import send_task_notification
-from rest_framework.filters import SearchFilter, OrderingFilter
-from django.shortcuts import get_object_or_404
+from django.urls import reverse_lazy
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.generic import TemplateView, ListView, DetailView, CreateView
 from .models import Task, Comment, TaskHistory
 from .serializers import TaskSerializer, CommentSerializer, TaskHistorySerializer
-from django.views.generic import TemplateView
+from .tasks import send_task_notification
+from rest_framework.filters import SearchFilter, OrderingFilter
 
 
 
@@ -63,17 +62,17 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class TaskCommentListCreateView(generics.ListCreateAPIView):
     """View for listing and creating task comments."""
-    serializer_class = TaskCommentSerializer
+    serializer_class = CommentSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         task_id = self.kwargs['task_id']
-        return TaskComment.objects.filter(task_id=task_id)
+        return Comment.objects.filter(task_id=task_id)
     
     def perform_create(self, serializer):
         task_id = self.kwargs['task_id']
         task = Task.objects.get(id=task_id)
-        serializer.save(author=self.request.user, task=task)
+        serializer.save(user=self.request.user, task=task)
 
 
 @api_view(['GET'])
@@ -144,12 +143,32 @@ class TaskViewSet(viewsets.ModelViewSet):
     def history(self, request, pk=None):
         task = self.get_object()
         history = task.history.all()
-        serializer = Task
-class TaskListPageView(TemplateView):
+        serializer = TaskHistorySerializer(history, many=True)
+        return Response(serializer.data)
+class TaskListPageView(LoginRequiredMixin, ListView):
     template_name = 'tasks/task_list.html'
+    context_object_name = 'tasks'
 
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            from django.contrib.auth.views import redirect_to_login
-            return redirect_to_login(request.get_full_path())
-        return super().dispatch(request, *args, **kwargs)
+    def get_queryset(self):
+        user = self.request.user
+        return Task.objects.filter(Q(created_by=user) | Q(assigned_to=user)).distinct().order_by('-created_at')
+
+
+class TaskDetailPageView(LoginRequiredMixin, DetailView):
+    template_name = 'tasks/task_detail.html'
+    model = Task
+    context_object_name = 'task'
+
+
+class TaskCreatePageView(LoginRequiredMixin, CreateView):
+    template_name = 'tasks/task_form.html'
+    model = Task
+    fields = ['title', 'description', 'status', 'priority', 'due_date', 'estimated_hours']
+
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        response = super().form_valid(form)
+        return response
+
+    def get_success_url(self):
+        return reverse_lazy('task-detail-page', kwargs={'pk': self.object.pk})

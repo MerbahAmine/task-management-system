@@ -1,18 +1,23 @@
 {% extends "base.html" %}
+{% block title %}Tasks{% endblock %}
 {% block content %}
-<h1>Task List</h1>
-<div id="task-list"></div>
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3">My Tasks</h1>
+  <a class="btn btn-success" href="/tasks/page/create/">New Task</a>
+  </div>
 
-<script>
-fetch('/api/tasks/', { credentials: 'include' })
-  .then(response => response.json())
-  .then(data => {
-    const container = document.getElementById('task-list');
-    data.results.forEach(task => {
-      const el = document.createElement('div');
-      el.textContent = `${task.title} - Status: ${task.status} - Priority: ${task.priority}`;
-      container.appendChild(el);
-    });
-  });
-</script>
+<div class="list-group">
+  {% for task in tasks %}
+    <a class="list-group-item list-group-item-action" href="/tasks/page/{{ task.id }}/">
+      <div class="d-flex w-100 justify-content-between">
+        <h5 class="mb-1">{{ task.title }}</h5>
+        <small class="text-muted">{{ task.priority|capfirst }} | {{ task.status|capfirst }}</small>
+      </div>
+      <p class="mb-1">{{ task.description|truncatechars:120 }}</p>
+      <small class="text-muted">Due: {{ task.due_date }}</small>
+    </a>
+  {% empty %}
+    <div class="alert alert-info">No tasks yet.</div>
+  {% endfor %}
+</div>
 {% endblock %}
