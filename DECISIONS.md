@@ -1,12 +1,3 @@
-
-##Features Completed and Why:
-
-I focused on completing the core mandatory features (Part A), as they were essential for the project evaluation. I prioritized these features to demonstrate solid understanding of fundamentals and proper time management.
-
-##Features Skipped and Why:
-
-Some advanced features (Part B) were skipped due to my current level of expertise. I intentionally left them out because I want to learn them directly during this internship. I believe working with your team will allow me to grow and master these advanced concepts.
-
 ##Time Allocation Breakdown:
 
 Days 1–2: I faced technical issues with my PC, which delayed my start. To stay committed, I invested in a new machine specifically to continue this project.
